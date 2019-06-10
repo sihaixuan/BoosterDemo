@@ -1,0 +1,52 @@
+
+ext {
+
+    kotlin_version = '1.3.31'
+    booster_version = '0.8.0'
+    maven_local_path = "${project.rootProject.rootDir.getAbsolutePath()}/repos"
+    groupId = "com.sihaixuan.plugin"
+
+    android_build_gradle = '3.2.0'
+
+    dependencies = [
+        glide: '4.9.0',
+        appcompat_v7: '28.0.0',
+        constraint_layout: '1.1.3',
+        recyclerView : "28.0.0",
+    ]
+
+
+    setCustomizedBoosterPluginModule = { extension,artifactId ->
+
+        extension.apply from: '../gradle/booster.gradle'
+        extension.apply plugin: 'maven'
+
+        extension.uploadArchives {
+            repositories.mavenDeployer {
+                repository(url: uri("$maven_local_path")) //仓库的路径，此处是项目根目录下的 repo 的文件夹
+                pom.groupId = "$groupId"  //groupId ，自行定义，一般是包名
+                pom.artifactId = artifactId //artifactId ，自行定义
+                pom.version = '1.0.0' //version 版本号
+            }
+        }
+
+        extension.dependencies {
+            implementation fileTree(dir: 'libs', include: ['*.jar'])
+            kapt "com.google.auto.service:auto-service:1.0-rc4"
+
+            implementation "com.didiglobal.booster:booster-android-gradle-api:$booster_version"
+            implementation "com.didiglobal.booster:booster-transform-asm:$booster_version"
+            implementation "com.didiglobal.booster:booster-task-spi:$booster_version"
+//            implementation "com.didiglobal.booster:booster-task-compression:$booster_version"
+            compileOnly "com.android.tools.build:gradle:${android_build_gradle}"
+            testCompileOnly "com.android.tools.build:gradle:${android_build_gradle}"
+            compile gradleApi()
+        }
+
+        extension.tasks.withType(JavaCompile){
+            options.encoding = "UTF-8"
+        }
+
+    }
+
+}

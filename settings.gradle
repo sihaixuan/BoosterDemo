@@ -1,0 +1,1 @@
+include ':app', ':library',  ':PrintConstantFieldsTransform', ':taskDependencies', ':TaskCompression'

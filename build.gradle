@@ -1,0 +1,76 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+apply from: 'config.gradle'
+buildscript {
+//    ext.kotlin_version = '1.3.31'
+//    ext.booster_version = '0.4.5'
+//    ext.maven_local_path = "${project.rootProject.rootDir.getAbsolutePath()}/repos"
+//    ext.groupId = "com.sihaixuan.plugin"
+    apply from: 'config.gradle'
+    repositories {
+        google()
+//        maven{
+//            url uri("F:/repos/Android")
+//        }
+        mavenCentral()
+        jcenter()
+        maven {//local maven repo path
+            url uri("$rootProject.ext.maven_local_path")
+        }
+
+        
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:${rootProject.ext.android_build_gradle}"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${this.ext.kotlin_version}"
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+
+        classpath "com.didiglobal.booster:booster-gradle-plugin:${this.ext.booster_version}"
+//        classpath "com.didiglobal.booster:booster-task-dependency:$booster_version"
+//        classpath "com.didiglobal.booster:booster-task-all:$booster_version"
+//        classpath "com.didiglobal.booster:booster-transform-all:${this.ext.booster_version}"
+
+//        classpath "com.didiglobal.booster:booster-transform-shrink:$booster_version"
+//        classpath "com.didiglobal.booster:booster-transform-thread:$booster_version"
+        classpath "com.didiglobal.booster:booster-task-compression:${this.ext.booster_version}"
+
+
+//        classpath "${this.ext.groupId}:PrintConstantFieldsTransform:1.0.0"
+        classpath "${this.ext.groupId}:TaskCompression:1.0.0"
+        classpath 'org.greenrobot:greendao-gradle-plugin:3.2.2'
+
+    }
+}
+
+allprojects {
+
+    repositories {
+        google()
+//        maven{
+//            url uri("F:/repos/Android")
+//        }
+        mavenCentral()
+        jcenter()
+        maven {//local maven repo path
+            url uri("${this.ext.maven_local_path}")
+        }
+        
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+
+
+subprojects { project ->
+    project.afterEvaluate {
+//       if( project.plugins.hasPlugin("com.android.library")){
+//           android {
+//               resourcePrefix "${project.name}_".toLowerCase()
+//           }
+//       }
+
+    }
+}
+

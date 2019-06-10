@@ -1,0 +1,6 @@
+rootProject.ext.setCustomizedBoosterPluginModule(this,"TaskCompression")
+
+dependencies{
+    implementation "com.didiglobal.booster:booster-aapt2:${this.rootProject.ext.booster_version}"
+    implementation "pink.madis.apk.arsc:android-chunk-utils:0.0.7"
+}

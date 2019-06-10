@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Library</string>
+    <string name="library_str">Library</string>
+    <array name="array">
+        <item>
+            1
+        </item>
+    </array>
+
+    <declare-styleable name="LibCustomView" >
+        <attr name="title"/>
+        <!-- Specifies subtitle text used for navigationMode="normal" -->
+        <attr format="string" name="subtitle"/>
+    </declare-styleable>
+</resources>

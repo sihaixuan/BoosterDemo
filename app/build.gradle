@@ -1,0 +1,84 @@
+apply from: '../config.gradle'
+apply plugin: 'com.android.application'
+
+apply plugin: 'kotlin-android'
+
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'com.didiglobal.booster'
+
+apply plugin: 'org.greenrobot.greendao'
+
+greendao {
+    schemaVersion 1
+    daoPackage 'GreenDao'
+
+}
+
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        applicationId "com.sihaixuan.booster.demo"
+        minSdkVersion 24
+        targetSdkVersion 28
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        javaCompileOptions {
+            annotationProcessorOptions {
+                includeCompileClasspath = true
+            }
+        }
+    }
+
+    signingConfigs{
+        release{
+            keyAlias 'android'
+            keyPassword 'sihaixuan'
+            def path = project.rootDir.path+ "/keystore.jks"
+            storeFile file(path)
+            storePassword 'sihaixuan'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+
+
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
+    }
+
+}
+
+
+
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation"org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    implementation "com.android.support:appcompat-v7:${this.rootProject.ext.dependencies.appcompat_v7}"
+    implementation "com.android.support.constraint:constraint-layout:${this.rootProject.ext.dependencies.constraint_layout}"
+    implementation "com.android.support:recyclerview-v7:${this.rootProject.ext.dependencies.recyclerView}"
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation "com.github.bumptech.glide:glide:${this.rootProject.ext.dependencies.glide}"
+
+    implementation project(":library")
+
+    implementation  'org.greenrobot:greendao:3.2.2'
+
+
+
+
+
+}
