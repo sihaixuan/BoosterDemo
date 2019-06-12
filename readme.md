@@ -225,7 +225,7 @@ packageAndroidTask从processedResTask产物中读取ap_文件，开启shrinkReso
 
 ![text](./pictures/booster_removeRepeatResource_report_3.jpg)
 
-可以知道删除哪些重复资源，压缩包减少了多少kb。
+可以知道删除哪些无用资源，压缩包减少了多少kb。
 
 
 
