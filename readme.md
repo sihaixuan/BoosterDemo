@@ -30,13 +30,14 @@ Booster对资源索引文件resources.arsc的压缩，只是单一设置ZipEntry
 
 3.无用资源优化
 
-资源混淆见[微信开源的资源混淆库AndResGuard](https://github.com/shwenzhang/AndResGuard),
+资源混淆见[微信开源的资源混淆库AndResGuard](https://github.com/shwenzhang/AndResGuard)
  
 对重复的资源优化和对被shrinkResources优化掉的资源进行处理的原理见：[美团博客 Android App包瘦身优化实践](https://tech.meituan.com/2017/04/07/android-shrink-overall-solution.html)
  
 这里根据美团讲述的原理在Booster定制task实现对重复的资源优化和对无用资源优化，详见工程[module TaskCompression]()。
 
-###一、对重复的资源优化
+
+一、对重复的资源优化
 
 重复资源的筛选条件为 资源的zipEntry.crc相等，最先出现的资源压缩包产物ap_文件是在processResTask中，尽可能早的删除重复资源，
 可以减少后续task的执行时间，hook在processResTask之后，如下：
@@ -107,7 +108,8 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 可以知道删除哪些重复资源，压缩包减少了多少kb。
 
 
-###二、无用资源优化
+
+二、无用资源优化
 
 通过shrinkResources true来开启资源压缩，资源压缩工具会把无用的资源替换成预定义的版本而不是移除，
 如果采用人工移除的方式会带来后期的维护成本，在Android构建工具执行package${flavorName}Task之前通过修改Compiled Resources来实现自动去除无用资源。
