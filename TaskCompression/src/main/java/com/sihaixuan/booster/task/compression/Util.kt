@@ -2,8 +2,8 @@ package com.sihaixuan.booster.task.compression
 
 import com.android.build.gradle.api.BaseVariant
 import com.android.build.gradle.tasks.PackageAndroidArtifact
-import com.android.build.gradle.tasks.ProcessAndroidResources
 import com.didiglobal.booster.gradle.project
+import org.gradle.api.Task
 
 /**
  *
@@ -16,5 +16,10 @@ import com.didiglobal.booster.gradle.project
  * @version   1.0
  *
  */
+
+//先不考虑android tool gradle的版本
 val BaseVariant.packageAndroidTask: PackageAndroidArtifact
     get() = project.tasks.withType(PackageAndroidArtifact::class.java).findByName("package${name.capitalize()}")!!
+
+val BaseVariant.shrinkResourcesTask: Task?
+    get() = project.tasks.findByName("shrink${name.capitalize()}Resources")
