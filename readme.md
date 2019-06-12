@@ -99,6 +99,7 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 ![text](./pictures/booster_apk_origin_repeat.jpg)
 
 使用工具查看集成重复的资源优化的apk，如图：
+![text](./pictures/booster_apk_unsedResources.jpg)
 
 集成重复的资源优化打包，控制和输出报告都可以看到如下输出：
 
