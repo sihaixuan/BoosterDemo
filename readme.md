@@ -37,6 +37,7 @@ Booster对资源索引文件resources.arsc的压缩，只是单一设置ZipEntry
 这里根据美团讲述的原理在Booster定制task实现对重复的资源优化和对无用资源优化，详见工程[module TaskCompression]()。
 
 
+
 一、对重复的资源优化
 
 重复资源的筛选条件为 资源的zipEntry.crc相等，最先出现的资源压缩包产物ap_文件是在processResTask中，尽可能早的删除重复资源，
@@ -106,6 +107,7 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 ![text](./pictures/booster_removeRepeatResource_report_1.jpg)
 
 可以知道删除哪些重复资源，压缩包减少了多少kb。
+
 
 
 
