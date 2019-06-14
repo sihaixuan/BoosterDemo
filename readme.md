@@ -85,7 +85,7 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 
 3.根据收集的重复资源，保留重复资源的第一个，从删除ap_文件中删除其他重复资源的zipEntry
 
-4.使用通过[android-chunk-utils]修改resources.arsc,把把这些重复的资源都重定向到没有被删除的第一个资源
+4.使用通过[android-chunk-utils]修改resources.arsc全局StringChunk,把这些重复的资源都重定向到没有被删除的第一个资源
 
 5.按照同ZipEntry.method把改动后的resources.arsc添加到ap_文件中
 
@@ -115,7 +115,20 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 二、无用资源优化
 
 通过shrinkResources true来开启资源压缩，资源压缩工具会把无用的资源替换成预定义的版本而不是移除，
-如果采用人工移除的方式会带来后期的维护成本，在Android构建工具执行package${flavorName}Task之前通过修改Compiled Resources来实现自动去除无用资源。
+那么google出于什么原因这样做了？ [ResourceUsageAnalyzer](https://android.googlesource.com/platform/tools/base/+/refs/tags/gradle_3.0.0/build-system/gradle-core/src/main/java/com/android/build/gradle/tasks/ResourceUsageAnalyzer.java)
+注释是这样说的的：
+```
+/**
+     * Whether we should create small/empty dummy files instead of actually
+     * removing file resources. This is to work around crashes on some devices
+     * where the device is traversing resources. See http://b.android.com/79325 for more.
+     */
+```
+注释上说了适配解决某些设备crash问题，查看[issue](https://issuetracker.google.com/issues/37010152),发现发生crash的设备基本上都是三星手机，如果删除无用资源，需要考虑该issue问题。
+
+
+如果采用人工移除的方式会带来后期的维护成本，在Android构建工具执行package${flavorName}Task之前通过修改
+Compiled Resources来实现自动去除无用资源。
 
 具体流程如下： * 收集资源包（Compiled Resources的简称）中被替换的预定义版本的资源名称，通过查看资源包
 （Zip格式）中每个ZipEntry的CRC-32 checksum来寻找被替换的预定义资源，预定义资源的CRC-32定义在
@@ -192,6 +205,7 @@ val unusedResourceCrcs  = longArrayOf(
     0 //jpg、jpeg、webp等
 )
 ```
+如果集成了
 
 打印packageAndroidTask的inputFiles，如下：
 
@@ -211,18 +225,28 @@ packageAndroidTask从processedResTask产物中读取ap_文件，开启shrinkReso
 可以看到没有使用的webp、jpg资源的ZipEntry.crc为0;如果集成了Booster内置的booster-task-compression，
 会把png格式转换成webp格式，没使用的png最后的crc会变为0.
 
+删除无用资源方案想到两种：
+
+方案一：删除所有无用资源文件，以及删除资源索引文件resources.arsc中global StringChunk有关无用资源的数据项。
+
+缺点：删除了global StringChunk中的数据项，改变了后续数据项的索引值，好比删除List中的元素，后续的元素索引值减一一样，牵一发动全身，需要同步其他chunk索引到global StringChunk数据项的索引值。否则会出现资源显示混乱，甚至crash；同时需要考虑上述issue问题。对resources.arsc越大出现问题的概率越大
+
+ 
+
+方案二：无用资源根据crc分类，再按照重复资源优化，没有删除global StringChunk数据项，没有改变数据项的索引值，不需要改动其他chunk,同时不会出现上述issue问题。
+
+ 
+
+下面对方案二具体实现，方案一就不做讨论了。
+
 无用资源优化的代码实现整体思路：
 
-1.从ap_文件中解压出resources.arsc条目，并收集该条目的ZipEntry.method,为后续按照同ZipEntry.method
-把改动后的resources.arsc添加到ap_文件中
+1.从ap_文件中解压出resources.arsc条目，并收集该条目的ZipEntry.method,为后续按照同ZipEntry.method 把改动后的resources.arsc添加到ap_文件中
 
 2.收集无用资源
 
-3.根据收集的无用资源，从删除ap_文件中对应zipEntry
+3.把收集的无用资源根据crc进行分类，在按照重复资源优化处理
 
-4.使用通过[android-chunk-utils]修改resources.arsc,把未使用的资源从对应的stringPool中删除
-
-5.按照同ZipEntry.method把改动后的resources.arsc添加到ap_文件中
 
 源码见:[doRemoveUnusedResources方法](https://github.com/sihaixuan/BoosterDemo/blob/master/TaskCompression/src/main/java/com/sihaixuan/booster/task/compression/RemoveRepeatResourceVariantProcessor.kt)
 
@@ -230,7 +254,10 @@ packageAndroidTask从processedResTask产物中读取ap_文件，开启shrinkReso
 
 ![text](./pictures/booster_removeRepeatResource_report_3.jpg)
 
-可以知道删除哪些无用资源，压缩包减少了多少kb。
+可以知道删除哪些无用资源，压缩包减少了多少kb，无用资源优化减少的size没多少。
+
+
+以上重复资源优化和无用资源优化，没有经过大量设备测试，仅供参考学习。
 
 
 

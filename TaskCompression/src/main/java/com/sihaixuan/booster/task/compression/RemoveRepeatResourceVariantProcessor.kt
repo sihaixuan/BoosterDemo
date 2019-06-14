@@ -14,6 +14,10 @@ import com.didiglobal.booster.kotlinx.touch
 import com.didiglobal.booster.task.spi.VariantProcessor
 import com.didiglobal.booster.util.search
 import com.google.auto.service.AutoService
+import com.sihaixuan.extractzip.util.getStrings
+import com.sihaixuan.extractzip.util.getStyles
+import com.sihaixuan.extractzip.util.removeString
+import com.sihaixuan.extractzip.util.setString
 import org.apache.tools.ant.taskdefs.Zip
 import pink.madis.apk.arsc.ResourceFile
 import pink.madis.apk.arsc.ResourceTableChunk
@@ -90,7 +94,7 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
         }
 
         variant.packageAndroidTask.doFirst{
-            //开启了shrinkResources，才能知道无用资源哪些
+//            开启了shrinkResources，才能知道无用资源哪些
             variant.shrinkResourcesTask?.apply {
                 variant.removeUnusedResources(it.logger,results)
             }
@@ -191,15 +195,140 @@ private fun BaseVariant.generateReport(results: RemoveRepeatResourceResults) {
 
 }
 
+
 private fun BaseVariant.removeUnusedResources(logger:Logger,results:RemoveRepeatResourceResults){
     packageAndroidTask.inputs.files.files.apply {
         val files = search{
             it.name.startsWith(SdkConstants.FN_RES_BASE) && it.extension == SdkConstants.EXT_RES && it.name.contains("stripped")
         }
         files.parallelStream().forEach { ap_ ->
-            doRemoveUnusedResources(ap_,logger,results)
+//            doRemoveUnusedResources(ap_,logger,results)
+            doRemoveUnusedResources1(ap_,logger,results)
         }
     }
+
+}
+
+
+/**
+ * 没有未使用资源的crc 有五类 见unusedResourceCrcs
+ * 每类无使用资源当做重复资源优化处理
+ */
+private fun doRemoveUnusedResources1(apFile:File,logger:Logger,results:RemoveRepeatResourceResults){
+
+
+    val entryName = "resources.arsc"
+    val arscFile = File(apFile.parent,entryName)
+
+    if(arscFile.exists()){
+        arscFile.delete()
+    }
+
+    try{
+        //解压resources.arsc条目
+        val extractResult = apFile.extractZipEntry(entryName,arscFile)
+        if(!extractResult.success){
+            logger.error("${apFile.name} $entryName zipEntry extract failed!")
+            return
+        }
+
+        //找出未使用的资源
+        val unusedResources = apFile.findUnusedResources()
+
+        if(unusedResources.isEmpty()){
+            logger.warn("${apFile.name} $entryName do not has unusedResources")
+            return
+        }
+
+
+
+        //通过android-chunk-utils修改resources.arsc，把未使用的资源按照crc分类，按照重复资源优化处理
+        FileInputStream(arscFile).use {
+            ResourceFile.fromInputStream(it).apply {
+                val chucks = this.chunks
+                val toBeReplacedResourceMap = HashMap<String,String>()
+                val removedDuplicatedResources =  ArrayList<DuplicatedOrUnusedEntry>()
+
+                unusedResources.groupBy {
+                    it.crc
+                }.filter {
+                    it.value.size > 1
+                }.forEach { mapEntry ->
+                    mapEntry.value.apply {
+                        val retained = mapEntry.value[0]
+                        val removedEntryNames = ArrayList<String>()
+
+                        forEach { entry ->
+                            if(retained != entry){
+                                // 保留第一个资源 删除重复的资源
+                                removedEntryNames.add(entry.name)
+                                removedDuplicatedResources.add(entry)
+                                toBeReplacedResourceMap[entry.name] = retained.name
+                            }
+                        }
+
+                        apFile.removeZipEntry(removedEntryNames)
+
+                        chucks.filter{ chunk->
+                            chunk is ResourceTableChunk
+                        }.map{ chunk->
+                            chunk as ResourceTableChunk
+                        }.forEach { chunk ->
+                            val stringPoolChunk = chunk.stringPool
+                            for(index in 0 until stringPoolChunk.stringCount){
+                                val key = stringPoolChunk.getString(index)
+                                if(toBeReplacedResourceMap.containsKey(key)){
+                                    //把这些重复的资源都重定向到同一个文件上
+                                    stringPoolChunk.setString(index,retained.name)
+                                }
+                            }
+                        }
+
+                    }
+                }
+
+
+
+
+
+
+                results.addAll(removedDuplicatedResources)
+
+                arscFile.delete()
+
+                //把ResourceFile 中数据，写入到arscFile去
+                FileOutputStream(arscFile).use {
+                    BufferedOutputStream(it).use { bufferedOutputStream ->
+                        bufferedOutputStream.write(this.toByteArray())
+                    }
+                }
+
+                //从resources.ap_压缩包中删除resources.arsc条目
+                apFile.removeZipEntry(entryName)
+
+                //把修改后的resources.arsc文件,打入resources.ap_压缩包
+                apFile.addZipEntry(arscFile, entryName, extractResult.entryMethod)
+
+
+            }
+
+        }
+        if(!arscFile.delete()){
+            logger.error("fail to delete the file `$arscFile`")
+        }
+
+        //获取修改后的ap_文件中resources.arsc的信息,添加
+        val entry = apFile.getZipEntry(entryName)
+        entry?.apply {
+            val duplicatedOrUnusedEntry = DuplicatedOrUnusedEntry(entry.crc,entryName,entry.size,entry.compressedSize,
+                DuplicatedOrUnusedEntryType.asrc,(extractResult.compressionSize - entry.compressedSize ))
+            results.add(duplicatedOrUnusedEntry)
+        }
+
+    }catch (e:Exception){
+        logger.error("doRemoveUnusedResources", e)
+    }
+
 
 }
 
@@ -244,17 +373,7 @@ private fun doRemoveUnusedResources(apFile:File,logger:Logger,results:RemoveRepe
                     }.map { chunk ->
                         chunk as ResourceTableChunk
                     }.forEach { chunk ->
-                        val stringPoolChunk = chunk.stringPool
-                        val strings = stringPoolChunk.getStrings()
-                        strings?.apply {
-                            val iterator = this.listIterator() as MutableListIterator
-                            while(iterator.hasNext()){
-                                val value = iterator.next()
-                                if(value == entry.name){
-                                    iterator.remove()
-                                }
-                            }
-                        }
+                        chunk.removeString(entry.name)
                     }
 
                 }
@@ -288,7 +407,7 @@ private fun doRemoveUnusedResources(apFile:File,logger:Logger,results:RemoveRepe
         //获取修改后的ap_文件中resources.arsc的信息,添加
         val entry = apFile.getZipEntry(entryName)
         entry?.apply {
-            val duplicatedOrUnusedEntry = DuplicatedOrUnusedEntry(entryName,entry.size,entry.compressedSize,
+            val duplicatedOrUnusedEntry = DuplicatedOrUnusedEntry(entry.crc,entryName,entry.size,entry.compressedSize,
                 DuplicatedOrUnusedEntryType.asrc,(extractResult.compressionSize - entry.compressedSize ))
             results.add(duplicatedOrUnusedEntry)
         }
@@ -412,30 +531,6 @@ private fun doRemoveRepeatResources(apFile:File,logger:Logger,results:RemoveRepe
 }
 
 
-private fun StringPoolChunk.setString(index:Int, value:String){
-    try{
-        val field = javaClass.getDeclaredField("strings")
-        field.setAccessible(true)
-        val list = field.get(this) as MutableList<String>
-        list.set(index,value)
-    }catch (e:Exception){
-        e.printStackTrace()
-    }
-
-}
-
-private fun StringPoolChunk.getStrings():List<String>?{
-    try{
-        val field = javaClass.getDeclaredField("strings")
-        field.setAccessible(true)
-        return field.get(this) as List<String>
-    }catch (e:Exception){
-        e.printStackTrace()
-    }
-
-    return null
-
-}
 
 
 private fun File.getZipEntry(entryName:String):ZipEntry?{
@@ -645,7 +740,7 @@ private fun File.findUnusedResources():List<DuplicatedOrUnusedEntry>{
     ZipFile(this).use { zip ->
         zip.entries().asSequence().forEach { entry ->
             if(entry.crc in unusedResourceCrcs){
-                unusedResources.add(DuplicatedOrUnusedEntry(entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.unused))
+                unusedResources.add(DuplicatedOrUnusedEntry(entry.crc,entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.unused))
             }
         }
 
@@ -667,7 +762,7 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
             }
 
             val list = duplicatedResources[key]
-            list?.add(DuplicatedOrUnusedEntry(entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.duplicated))
+            list?.add(DuplicatedOrUnusedEntry(entry.crc,entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.duplicated))
 
         }
     }
@@ -690,7 +785,7 @@ private class DuplicatedOrUnusedEntryType{
     }
 }
 
-data class DuplicatedOrUnusedEntry(val name:String,val size:Long,val compressionSize:Long,val entryType:String,var extral : Any? = null)
+data class DuplicatedOrUnusedEntry(val crc : Long,val name:String,val size:Long,val compressionSize:Long,val entryType:String,var extral : Any? = null)
 
 data class ExtractZipEntryResult(val entryName: String,var entryMethod: Int = ZipEntry.DEFLATED,var size: Long = 0,var compressionSize: Long = 0,var success :Boolean = false)
 

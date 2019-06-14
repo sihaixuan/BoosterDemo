@@ -32,7 +32,7 @@ buildscript {
 
 //        classpath "com.didiglobal.booster:booster-transform-shrink:$booster_version"
 //        classpath "com.didiglobal.booster:booster-transform-thread:$booster_version"
-        classpath "com.didiglobal.booster:booster-task-compression:${this.ext.booster_version}"
+//        classpath "com.didiglobal.booster:booster-task-compression:${this.ext.booster_version}"
 
 
 //        classpath "${this.ext.groupId}:PrintConstantFieldsTransform:1.0.0"

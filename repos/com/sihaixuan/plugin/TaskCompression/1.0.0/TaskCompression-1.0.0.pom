@@ -20,25 +20,25 @@
     <dependency>
       <groupId>com.didiglobal.booster</groupId>
       <artifactId>booster-android-gradle-api</artifactId>
-      <version>0.8.0</version>
+      <version>0.13.0</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>com.didiglobal.booster</groupId>
       <artifactId>booster-transform-asm</artifactId>
-      <version>0.8.0</version>
+      <version>0.13.0</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>com.didiglobal.booster</groupId>
       <artifactId>booster-task-spi</artifactId>
-      <version>0.8.0</version>
+      <version>0.13.0</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>com.didiglobal.booster</groupId>
       <artifactId>booster-aapt2</artifactId>
-      <version>0.8.0</version>
+      <version>0.13.0</version>
       <scope>runtime</scope>
     </dependency>
     <dependency>

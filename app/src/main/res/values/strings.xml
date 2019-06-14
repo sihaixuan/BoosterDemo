@@ -1,8 +1,12 @@
 <resources>
     <string name="app_name">BoosterDemo</string>
+    <string name="welcome_messages">Hello, %1$s! You have %2$d new messages.</string>
+
     <declare-styleable name="AppCustomView" >
         <attr name="title"/>
         <!-- Specifies subtitle text used for navigationMode="normal" -->
         <attr format="string" name="subtitle"/>
     </declare-styleable>
+
+
 </resources>
