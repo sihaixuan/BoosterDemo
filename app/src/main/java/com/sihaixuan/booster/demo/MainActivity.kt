@@ -48,6 +48,8 @@ class MainActivity : AppCompatActivity() {
 //        println(result)
 
         testThread()
+
+        testAssets()
     }
 
     fun testThread(){
@@ -85,5 +87,13 @@ class MainActivity : AppCompatActivity() {
         rv = findViewById(R.id.rv)
         rv.layoutManager = LinearLayoutManager(this)
         rv.adapter = SimpleAdapter(this)
+    }
+
+    private fun testAssets(){
+        try{
+            resources.assets.open("booster_constants.jpg")
+        }catch (e:Exception){
+            e.printStackTrace()
+        }
     }
 }

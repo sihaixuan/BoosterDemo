@@ -23,3 +23,9 @@ val BaseVariant.packageAndroidTask: PackageAndroidArtifact
 
 val BaseVariant.shrinkResourcesTask: Task?
     get() = project.tasks.findByName("shrink${name.capitalize()}Resources")
+
+val BaseVariant.dexArchiveWithDexMergerTask : Task
+    get() = project.tasks.findByName("transformDexArchiveWithDexMergerFor${name.capitalize()}")!!
+
+val BaseVariant.mergeAssetsTask : Task
+    get() = project.tasks.findByName("merge${name.capitalize()}Assets")!!

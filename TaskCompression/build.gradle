@@ -1,6 +1,9 @@
 rootProject.ext.setCustomizedBoosterPluginModule(this,"TaskCompression")
 
 dependencies{
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "com.didiglobal.booster:booster-aapt2:${this.rootProject.ext.booster_version}"
     implementation "pink.madis.apk.arsc:android-chunk-utils:0.0.7"
+    implementation "org.smali:smali:2.2.7"
+    implementation 'org.smali:baksmali:2.2.7'
 }

@@ -3,10 +3,7 @@ package com.sihaixuan.booster.task.compression
 import com.android.SdkConstants
 import com.android.build.gradle.api.BaseVariant
 import com.android.build.gradle.tasks.ResourceUsageAnalyzer
-import com.didiglobal.booster.gradle.processResTask
-import com.didiglobal.booster.gradle.processedRes
-import com.didiglobal.booster.gradle.project
-import com.didiglobal.booster.gradle.scope
+import com.didiglobal.booster.gradle.*
 import com.didiglobal.booster.kotlinx.file
 import com.didiglobal.booster.kotlinx.touch
 
@@ -14,19 +11,22 @@ import com.didiglobal.booster.kotlinx.touch
 import com.didiglobal.booster.task.spi.VariantProcessor
 import com.didiglobal.booster.util.search
 import com.google.auto.service.AutoService
-import com.sihaixuan.extractzip.util.getStrings
-import com.sihaixuan.extractzip.util.getStyles
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.sihaixuan.extractzip.util.removeString
 import com.sihaixuan.extractzip.util.setString
-import org.apache.tools.ant.taskdefs.Zip
+import org.gradle.api.Project
 import pink.madis.apk.arsc.ResourceFile
 import pink.madis.apk.arsc.ResourceTableChunk
-import pink.madis.apk.arsc.StringPoolChunk
 import java.io.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import org.gradle.api.logging.Logger
+import org.jf.baksmali.BaksmaliOptions
+import org.jf.dexlib2.DexFileFactory
+import org.jf.dexlib2.Opcodes
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -67,23 +67,40 @@ import java.util.concurrent.CopyOnWriteArrayList
  */
 @AutoService(VariantProcessor::class)
 class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
+    
+
+    
     override fun process(variant: BaseVariant) {
 
-//        variant.shrinkResourcesTask?.inputs?.files?.forEach {
-//            println("shrinkResourcesTask inputs files: ${it.absolutePath}")
+
+
+//        variant.packageAndroidTask.apply {
+//
+//            inputs.files.files.forEach {
+//                println("$name inputs files: ${it.absolutePath}")
+//            }
+//            outputs.files.files.forEach {
+//                println("$name out files: ${it.absolutePath}")
+//            }
+//
+//
 //        }
 //
-//        variant.shrinkResourcesTask?.outputs?.files?.forEach {
-//            println("shrinkResourcesTask output files: ${it.absolutePath}")
+//
+//        variant.mergeAssetsTask.apply {
+//            outputs.files.files.forEach {
+//                println("***$name out files: ${it.absolutePath}")
+//            }
 //        }
 //
-//        variant.packageAndroidTask.inputs.files.forEach {
-//            println("packageAndroidTask input files: ${it.absolutePath}")
+//        variant.dexArchiveWithDexMergerTask.apply {
+//            outputs.files.files.forEach {
+//                println("***$name out files: ${it.absolutePath}")
+//            }
 //        }
-//
-//        variant.packageAndroidTask.outputs.files.forEach {
-//            println("packageAndroidTask out files: ${it.absolutePath}")
-//        }
+
+
+
 
         val results = RemoveRepeatResourceResults()
 
@@ -95,19 +112,229 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
 
         variant.packageAndroidTask.doFirst{
 //            开启了shrinkResources，才能知道无用资源哪些
-            variant.shrinkResourcesTask?.apply {
+            if(variant.shrinkResourcesTask != null){
                 variant.removeUnusedResources(it.logger,results)
+                variant.removeUnusedAssetsResources(it.logger,true,results)
+            }else{
+                variant.removeUnusedAssetsResources(it.logger,false,results)
             }
+
 
             variant.generateReport(results)
 
         }
+        
 
     }
 }
 
+private fun getIgnoreAssetsResources(project : Project):List<String>{
+    val results = ArrayList<String>()
+
+    val jsonFile = File(project.projectDir,"TaskCompression.json")
+    if(!jsonFile.exists()){
+        println("${project.name}.json do not exist!")
+        return results
+    }
+
+    FileReader(jsonFile).use{
+        val jsonObject = JsonParser().parse(it) as JsonObject
+        val jsonArray = jsonObject.getAsJsonArray("ignoreAssets")
+        jsonArray.forEach {
+            results.add(it.asString)
+        }
+//        println("results = $results")
+    }
+
+    return results
+
+
+}
+
+private fun findUsedAssetsResources(variant: BaseVariant,assetsResources:List<String>): List<String>{
+    val results = ArrayList<String>()
+
+    var dexFiles = HashSet<File>()
+
+    variant.dexArchiveWithDexMergerTask.outputs.files.files.apply {
+        val files = search{
+            it.extension == SdkConstants.EXT_DEX
+        }
+        dexFiles.addAll(files)
+    }
+
+    if(dexFiles.size == 0){
+        println("${variant.name.capitalize()} findUsedAssetsResources : can not find dex file!")
+        return results
+    }
+
+    dexFiles.forEach {
+        try{
+            val dexFile = DexFileFactory.loadDexFile(it, Opcodes.forApi(15))
+            val options = BaksmaliOptions()
+            dexFile.classes.parallelStream().forEach {
+                it.disassembleClass(options)?.apply {
+                    readSmaliLines(this,assetsResources,results)
+                }
+            }
+
+        }catch (e :Exception){
+            e.printStackTrace()
+        }
+    }
+
+    return results
+}
+
+
+private fun readSmaliLines(lines:List<String>,assetsResources: List<String>,results:MutableList<String>){
+    lines.forEach {line ->
+        val newLine = line.trim()
+        if(!newLine.isNullOrEmpty() && line.startsWith("const-string")){
+            val columns = newLine.split(",")
+            if(columns.size == 2){
+                var assetFileName = columns[1].trim()
+                assetFileName = assetFileName.substring(1, assetFileName.length - 1)
+                if(!assetFileName.isNullOrEmpty() && assetFileName in assetsResources){
+                    results.add(assetFileName)
+                }
+            }
+        }
+    }
+}
+
+private fun BaseVariant.removeUnusedAssetsResources(logger:Logger,isShrinkResources:Boolean,results:RemoveRepeatResourceResults){
+
+
+
+    packageAndroidTask.inputs.files.files.apply {
+        val files = search{
+            it.name.startsWith(SdkConstants.FN_RES_BASE) && it.extension == SdkConstants.EXT_RES && (if(isShrinkResources) it.name.contains("stripped") else !it.name.contains("stripped"))
+        }
+        
+        if(files.isEmpty()){
+            println("${name.capitalize()} removeUnusedAssetsResources : can not find ap_ file!")
+        }
+        
+        files.parallelStream().forEach { ap_ ->
+            //            doRemoveUnusedResources(ap_,logger,results)
+            doRemoveUnusedAssetsResources(ap_,this@removeUnusedAssetsResources,logger,results)
+        }
+    }
+
+
+
+
+
+
+
+}
+
+
+private fun BaseVariant.findAssetsResource():List<String>{
+    val results = ArrayList<String>()
+    mergeAssetsTask.outputs.files.files.apply {
+        val files = search {
+            it.exists() && it.isFile
+        }
+
+        files.forEach {
+            results.add(it.name)
+        }
+    }
+
+    return results
+}
+
+private fun doRemoveUnusedAssetsResources(apFile:File,variant: BaseVariant,logger:Logger,results:RemoveRepeatResourceResults){
+
+
+    try {
+
+
+
+        //找出assets资源
+        val assetsResources = variant.findAssetsResource()
+
+        if (assetsResources.isEmpty()) {
+            logger.warn("${variant.name.capitalize()} ${apFile.name} do not has assetsResources")
+            return
+        }
+
+        //找出usedAssets
+        val usedAssetsResource = findUsedAssetsResources(variant,assetsResources)
+
+        if(usedAssetsResource.isEmpty()){
+            logger.warn("${variant.name.capitalize()} usedAssetsResource is empty!")
+        }
+
+        val ignoreAssetsResources = getIgnoreAssetsResources(variant.project)
+
+        //找出unusedAssets
+        var unusedAssetsResources = ArrayList<String>()
+        assetsResources.forEach assets@{ asset ->
+
+            if(asset in ignoreAssetsResources){
+                return@assets
+            }
+
+            usedAssetsResource.forEach { usedAsset ->
+                if (asset.endsWith(usedAsset)) {
+                    return@assets
+                }
+            }
+            unusedAssetsResources.add(asset)
+        }
+
+        if (unusedAssetsResources.isEmpty()) {
+            logger.warn("${variant.name.capitalize()} ${apFile.name} $ do not has unusedAssetsResources")
+            return
+        }
+
+        unusedAssetsResources.forEach {
+            logger.warn("unusedAssetsResources :$it")
+        }
+
+        //删除unusedAssets
+        variant.mergeAssetsTask.outputs.files.files.apply {
+            val suffix = "incremental${File.separator}merge${variant.name.capitalize()}Assets${File.separator}merger.xml"
+            val files = search {
+                it.exists() && it.isFile && !it.absolutePath.endsWith(suffix)
+            }
+
+            files.forEach {
+                if(it.name in unusedAssetsResources){
+                    val size = it.length()
+                    if(it.delete()){
+                        val name = "assets/" + it.name
+                        results.add(DuplicatedOrUnusedEntry(-1L,name,size,size,DuplicatedOrUnusedEntryType.unusedAssets))
+
+                    }else{
+                        logger.warn("${variant.name.capitalize()} failed to  delete ${it.absolutePath} ")
+                    }
+                }
+            }
+
+        }
+
+
+    }catch (e :Exception){
+        logger.error("${variant.name.capitalize()} doRemoveUnusedAssetsResources happen error ",e)
+    }
+
+
+
+
+
+
+
+}
+
+
+
+
 /**
- * unused webp,jpg crc = 0,size = 0
+ * unusedResource webp,jpg crc = 0,size = 0
  * from https://android.googlesource.com/platform/tools/base/+/refs/tags/gradle_3.1.2/build-system/gradle-core/src/main/java/com/android/build/gradle/tasks/ResourceUsageAnalyzer.java
  * method : replaceWithDummyEntry
  */
@@ -125,13 +352,14 @@ val unusedResourceCrcs  = longArrayOf(
  *
  * Generates report with format like the following:
  *
- * deleted or unused or shrink | DuplicatedOrUnusedEntryType  | zipRetry name | size | compressed size
+ * deleted or unusedResource or shrink | DuplicatedOrUnusedEntryType  | zipRetry name | size | compressed size
  *
  */
 private fun BaseVariant.generateReport(results: RemoveRepeatResourceResults) {
     var totalSize : Long= 0
     var duplicatedSize : Long = 0
-    var unusedSize : Long = 0
+    var unusedResourcesSize : Long = 0
+    var unusedAssetsSize : Long = 0
     var arscSize : Long = 0
 
     val maxWidth0 = results.map { it.name.length }.max() ?: 0
@@ -163,7 +391,8 @@ private fun BaseVariant.generateReport(results: RemoveRepeatResourceResults) {
 
             when(entry.entryType){
                 DuplicatedOrUnusedEntryType.duplicated  ->  duplicatedSize += if(entry.size == entry.compressionSize) entry.size else entry.compressionSize
-                DuplicatedOrUnusedEntryType.unused      ->  unusedSize += if(entry.size == entry.compressionSize) entry.size else entry.compressionSize
+                DuplicatedOrUnusedEntryType.unusedResource      ->  unusedResourcesSize += if(entry.size == entry.compressionSize) entry.size else entry.compressionSize
+                DuplicatedOrUnusedEntryType.unusedAssets    ->  unusedAssetsSize += if(entry.size == entry.compressionSize) entry.size else entry.compressionSize
                 else  -> arscSize += if(entry.extral == null) 0 else entry.extral as Long
             }
 
@@ -172,7 +401,8 @@ private fun BaseVariant.generateReport(results: RemoveRepeatResourceResults) {
 
         val text = "all deleted size : ${String.format("%.2f",(totalSize / 1024.0))} kb ," +
                 "duplicatedSize : ${String.format("%.2f",(duplicatedSize / 1024.0))} kb , " +
-                "unusedSize : ${String.format("%.2f",(unusedSize / 1024.0))} kb" +
+                "unusedResourcesSize : ${String.format("%.2f",(unusedResourcesSize / 1024.0))} kb, " +
+                "unusedAssetsSize : ${String.format("%.2f",(unusedAssetsSize / 1024.0))} kb"
                 (if(arscSize == 0L) "" else " , resources.arsc shrinked size : ${String.format("%.2f",(arscSize / 1024.0))} kb")
 
         if(fullWidth > 0){
@@ -740,7 +970,7 @@ private fun File.findUnusedResources():List<DuplicatedOrUnusedEntry>{
     ZipFile(this).use { zip ->
         zip.entries().asSequence().forEach { entry ->
             if(entry.crc in unusedResourceCrcs){
-                unusedResources.add(DuplicatedOrUnusedEntry(entry.crc,entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.unused))
+                unusedResources.add(DuplicatedOrUnusedEntry(entry.crc,entry.name,entry.size,entry.compressedSize,DuplicatedOrUnusedEntryType.unusedResource))
             }
         }
 
@@ -780,8 +1010,10 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 private class DuplicatedOrUnusedEntryType{
     companion object {
         const val duplicated = "duplicated"
-        const val unused = "unused"
+        const val unusedResource = "unusedResource"
+        const val unusedAssets = "unusedAssets"
         const val asrc = "resources.arsc"
+
     }
 }
 
@@ -815,7 +1047,7 @@ data class Key(val crc :String,val resourceDir :String){
             hashCode = crc.hashCode()
             hashCode = 31 * hashCode + resourceDir.hashCode()
         }
-        return hashCode;
+        return hashCode
     }
 
     override fun toString(): String {

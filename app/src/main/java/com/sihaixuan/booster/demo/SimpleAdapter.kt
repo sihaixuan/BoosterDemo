@@ -22,12 +22,13 @@ import com.sihaixuan.booster.library.MainActivity
  *
  */
 class SimpleAdapter(private val context: Context) : RecyclerView.Adapter<SimpleAdapter.SimpleViewHolder>() {
-    private final lateinit var data :IntArray
+    private final lateinit var data :ArrayList<Any>
     init {
-        data = IntArray(3)
-        data.set(0,R.drawable.pexels_photo_733881)
-        data.set(1,R.drawable.pexels_photo_1608113)
-        data.set(2,R.drawable.pexels_photo_1767434)
+        data = ArrayList()
+        data.add(R.drawable.pexels_photo_733881)
+        data.add(R.drawable.pexels_photo_1608113)
+        data.add(R.drawable.pexels_photo_1767434)
+        data.add("file:///android_asset/pexels_photo_268533.jpeg")
     }
     override fun onBindViewHolder(holder: SimpleViewHolder, position: Int) {
         Glide.with(context).load(data[position]).into(holder.image)
