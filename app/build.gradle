@@ -15,6 +15,13 @@ greendao {
 
 }
 
+//optional configuration
+taskTree{
+//    noRepeat = true  //do not print a sub-tree in the task-tree more than once
+    impliesSubProjects = true  //do not print task-tree for child projects in a multi-project
+    taskDepth = 1 // limit tree depth to 3. Equivalent to running with the --task-depth option.
+}
+
 
 android {
     compileSdkVersion 28

@@ -43,17 +43,18 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Represents a variant processor for resources compression, the running order graph shows as below:
  *
  * ```
- *                      +--------------------+
- *                     | packageAndroidTask |
- *                     +--------+----------+
- *                              |
- *                   +-----------------------+
- *                  | removeUnusedResources |
- *                  +-----------+----------+
- *                              |
- *                    +---------------------+
- *                   | shrinkResourcesTask |
- *                  +-----------+---------+
+ *                                      +--------------------+
+ *                                     | packageAndroidTask |
+ *                                     +--------+----------+
+ *                                        /             \
+ *                                      /                \
+ *                   +-----------------------+        +----------------------------------+
+ *                  | removeUnusedResources |        |    removeUnusedAssetsResources   |
+ *                  +-----------+----------+        +----------------------------------+
+ *                              |                                 /                \
+ *                    +---------------------+             +-----------------+   +-----------------------------------+
+ *                   | shrinkResourcesTask |             | mergeAssetsTask  |  |  transformDexArchiveWithDexMerger |
+ *                  +-----------+---------+             +------------------+   +-----------------------------------+
  *                              |
  *                    +-----------------------+
  *                   | removeRepeatResources |
@@ -74,33 +75,36 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
 
 
 
-//        variant.packageAndroidTask.apply {
-//
-//            inputs.files.files.forEach {
-//                println("$name inputs files: ${it.absolutePath}")
-//            }
-//            outputs.files.files.forEach {
-//                println("$name out files: ${it.absolutePath}")
-//            }
-//
-//
-//        }
-//
-//
-//        variant.mergeAssetsTask.apply {
-//            outputs.files.files.forEach {
-//                println("***$name out files: ${it.absolutePath}")
-//            }
-//        }
-//
-//        variant.dexArchiveWithDexMergerTask.apply {
-//            outputs.files.files.forEach {
-//                println("***$name out files: ${it.absolutePath}")
-//            }
-//        }
 
 
+        val transformDexArchiveWithDexMerger = variant.project.tasks.findByName("transformDexArchiveWithDexMergerFor${variant.name.capitalize()}")
 
+        transformDexArchiveWithDexMerger?.apply {
+            println("***$name")
+            outputs?.files?.forEach {
+                println("***output file: ${it.absolutePath}")
+            }
+        }
+
+
+        println()
+
+        val mergeAssetsTask = variant.project.tasks.findByName("merge${variant.name.capitalize()}Assets")
+
+        mergeAssetsTask!!.apply {
+            println("***$name")
+            outputs.files.forEach {
+                println("*** output file: ${it.absolutePath}")
+            }
+
+        }
+
+//        val packageAndroidTask =   variant.packageAndroidTask
+//        packageAndroidTask.inputs.files.forEach {
+//            println("***${mergeAssetsTask.name} input file: ${it.absolutePath}")
+//        }
+
+        println("")
 
         val results = RemoveRepeatResourceResults()
 
@@ -112,15 +116,16 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
 
         variant.packageAndroidTask.doFirst{
 //            开启了shrinkResources，才能知道无用资源哪些
-            if(variant.shrinkResourcesTask != null){
+            variant.shrinkResourcesTask?.apply {
                 variant.removeUnusedResources(it.logger,results)
-                variant.removeUnusedAssetsResources(it.logger,true,results)
-            }else{
-                variant.removeUnusedAssetsResources(it.logger,false,results)
+
             }
 
+            //unusedAssetsResources优化
+            variant.removeUnusedAssetsResources(it.logger,results)
 
             variant.generateReport(results)
+
 
         }
         
@@ -203,31 +208,8 @@ private fun readSmaliLines(lines:List<String>,assetsResources: List<String>,resu
     }
 }
 
-private fun BaseVariant.removeUnusedAssetsResources(logger:Logger,isShrinkResources:Boolean,results:RemoveRepeatResourceResults){
-
-
-
-    packageAndroidTask.inputs.files.files.apply {
-        val files = search{
-            it.name.startsWith(SdkConstants.FN_RES_BASE) && it.extension == SdkConstants.EXT_RES && (if(isShrinkResources) it.name.contains("stripped") else !it.name.contains("stripped"))
-        }
-        
-        if(files.isEmpty()){
-            println("${name.capitalize()} removeUnusedAssetsResources : can not find ap_ file!")
-        }
-        
-        files.parallelStream().forEach { ap_ ->
-            //            doRemoveUnusedResources(ap_,logger,results)
-            doRemoveUnusedAssetsResources(ap_,this@removeUnusedAssetsResources,logger,results)
-        }
-    }
-
-
-
-
-
-
-
+private fun BaseVariant.removeUnusedAssetsResources(logger:Logger,results:RemoveRepeatResourceResults){
+    doRemoveUnusedAssetsResources(this,logger,results)
 }
 
 
@@ -246,18 +228,17 @@ private fun BaseVariant.findAssetsResource():List<String>{
     return results
 }
 
-private fun doRemoveUnusedAssetsResources(apFile:File,variant: BaseVariant,logger:Logger,results:RemoveRepeatResourceResults){
+private fun doRemoveUnusedAssetsResources(variant: BaseVariant,logger:Logger,results:RemoveRepeatResourceResults){
 
 
     try {
-
 
 
         //找出assets资源
         val assetsResources = variant.findAssetsResource()
 
         if (assetsResources.isEmpty()) {
-            logger.warn("${variant.name.capitalize()} ${apFile.name} do not has assetsResources")
+            logger.warn("${variant.name.capitalize()} $ do not has assetsResources")
             return
         }
 
@@ -268,6 +249,7 @@ private fun doRemoveUnusedAssetsResources(apFile:File,variant: BaseVariant,logge
             logger.warn("${variant.name.capitalize()} usedAssetsResource is empty!")
         }
 
+        //找出asserts白名单
         val ignoreAssetsResources = getIgnoreAssetsResources(variant.project)
 
         //找出unusedAssets
@@ -287,7 +269,7 @@ private fun doRemoveUnusedAssetsResources(apFile:File,variant: BaseVariant,logge
         }
 
         if (unusedAssetsResources.isEmpty()) {
-            logger.warn("${variant.name.capitalize()} ${apFile.name} $ do not has unusedAssetsResources")
+            logger.warn("${variant.name.capitalize()}  $ do not has unusedAssetsResources")
             return
         }
 
