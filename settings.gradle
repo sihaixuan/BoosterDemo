@@ -1,1 +1,1 @@
-include ':app', ':library',  ':PrintConstantFieldsTransform', ':taskDependencies', ':TaskCompression'
+include ':app', ':library',  ':TaskCompression'

@@ -9,11 +9,9 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/PrintConstantFieldsTransform" />
             <option value="$PROJECT_DIR$/TaskCompression" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/library" />
-            <option value="$PROJECT_DIR$/taskDependencies" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />

@@ -17,7 +17,7 @@ buildscript {
         mavenCentral()
         jcenter()
         maven {//local maven repo path
-            url uri("$rootProject.ext.maven_local_path")
+            url uri("F:\\developer_workspace\\android__workspace\\NewStudy\\BoosterDemo\\repos")
         }
 
         maven { url "https://plugins.gradle.org/m2" }
@@ -35,12 +35,11 @@ buildscript {
 //        classpath "com.didiglobal.booster:booster-task-all:$booster_version"
 //        classpath "com.didiglobal.booster:booster-transform-all:${this.ext.booster_version}"
 
-//        classpath "com.didiglobal.booster:booster-transform-shrink:$booster_version"
+        classpath "com.didiglobal.booster:booster-transform-shrink:$booster_version"
 //        classpath "com.didiglobal.booster:booster-transform-thread:$booster_version"
 //        classpath "com.didiglobal.booster:booster-task-compression:${this.ext.booster_version}"
 
 
-//        classpath "${this.ext.groupId}:PrintConstantFieldsTransform:1.0.0"
         classpath "${this.ext.groupId}:TaskCompression:1.0.0"
         classpath 'org.greenrobot:greendao-gradle-plugin:3.2.2'
 

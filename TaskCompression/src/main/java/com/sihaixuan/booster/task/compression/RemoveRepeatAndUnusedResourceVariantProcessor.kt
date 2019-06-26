@@ -11,12 +11,8 @@ import com.didiglobal.booster.kotlinx.touch
 import com.didiglobal.booster.task.spi.VariantProcessor
 import com.didiglobal.booster.util.search
 import com.google.auto.service.AutoService
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import com.sihaixuan.extractzip.util.removeString
 import com.sihaixuan.extractzip.util.setString
-import org.gradle.api.Project
 import pink.madis.apk.arsc.ResourceFile
 import pink.madis.apk.arsc.ResourceTableChunk
 import java.io.*
@@ -24,9 +20,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import org.gradle.api.logging.Logger
-import org.jf.baksmali.BaksmaliOptions
-import org.jf.dexlib2.DexFileFactory
-import org.jf.dexlib2.Opcodes
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -73,39 +66,6 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
     
     override fun process(variant: BaseVariant) {
 
-
-
-
-
-        val transformDexArchiveWithDexMerger = variant.project.tasks.findByName("transformDexArchiveWithDexMergerFor${variant.name.capitalize()}")
-
-        transformDexArchiveWithDexMerger?.apply {
-            println("***$name")
-            outputs?.files?.forEach {
-                println("***output file: ${it.absolutePath}")
-            }
-        }
-
-
-        println()
-
-        val mergeAssetsTask = variant.project.tasks.findByName("merge${variant.name.capitalize()}Assets")
-
-        mergeAssetsTask!!.apply {
-            println("***$name")
-            outputs.files.forEach {
-                println("*** output file: ${it.absolutePath}")
-            }
-
-        }
-
-//        val packageAndroidTask =   variant.packageAndroidTask
-//        packageAndroidTask.inputs.files.forEach {
-//            println("***${mergeAssetsTask.name} input file: ${it.absolutePath}")
-//        }
-
-        println("")
-
         val results = RemoveRepeatResourceResults()
 
         //重复资源的筛选条件为 资源的zipEntry.crc相等，最先出现的资源压缩包产物是在processResTask，
@@ -133,149 +93,42 @@ class RemoveRepeatResourceVariantProcessor: VariantProcessor  {
     }
 }
 
-private fun getIgnoreAssetsResources(project : Project):List<String>{
-    val results = ArrayList<String>()
-
-    val jsonFile = File(project.projectDir,"TaskCompression.json")
-    if(!jsonFile.exists()){
-        println("${project.name}.json do not exist!")
-        return results
-    }
-
-    FileReader(jsonFile).use{
-        val jsonObject = JsonParser().parse(it) as JsonObject
-        val jsonArray = jsonObject.getAsJsonArray("ignoreAssets")
-        jsonArray.forEach {
-            results.add(it.asString)
-        }
-//        println("results = $results")
-    }
-
-    return results
 
 
-}
 
-private fun findUsedAssetsResources(variant: BaseVariant,assetsResources:List<String>): List<String>{
-    val results = ArrayList<String>()
-
-    var dexFiles = HashSet<File>()
-
-    variant.dexArchiveWithDexMergerTask.outputs.files.files.apply {
-        val files = search{
-            it.extension == SdkConstants.EXT_DEX
-        }
-        dexFiles.addAll(files)
-    }
-
-    if(dexFiles.size == 0){
-        println("${variant.name.capitalize()} findUsedAssetsResources : can not find dex file!")
-        return results
-    }
-
-    dexFiles.forEach {
-        try{
-            val dexFile = DexFileFactory.loadDexFile(it, Opcodes.forApi(15))
-            val options = BaksmaliOptions()
-            dexFile.classes.parallelStream().forEach {
-                it.disassembleClass(options)?.apply {
-                    readSmaliLines(this,assetsResources,results)
-                }
-            }
-
-        }catch (e :Exception){
-            e.printStackTrace()
-        }
-    }
-
-    return results
-}
-
-
-private fun readSmaliLines(lines:List<String>,assetsResources: List<String>,results:MutableList<String>){
-    lines.forEach {line ->
-        val newLine = line.trim()
-        if(!newLine.isNullOrEmpty() && line.startsWith("const-string")){
-            val columns = newLine.split(",")
-            if(columns.size == 2){
-                var assetFileName = columns[1].trim()
-                assetFileName = assetFileName.substring(1, assetFileName.length - 1)
-                if(!assetFileName.isNullOrEmpty() && assetFileName in assetsResources){
-                    results.add(assetFileName)
-                }
-            }
-        }
-    }
-}
 
 private fun BaseVariant.removeUnusedAssetsResources(logger:Logger,results:RemoveRepeatResourceResults){
     doRemoveUnusedAssetsResources(this,logger,results)
 }
 
 
-private fun BaseVariant.findAssetsResource():List<String>{
-    val results = ArrayList<String>()
-    mergeAssetsTask.outputs.files.files.apply {
-        val files = search {
-            it.exists() && it.isFile
-        }
-
-        files.forEach {
-            results.add(it.name)
-        }
-    }
-
-    return results
-}
 
 private fun doRemoveUnusedAssetsResources(variant: BaseVariant,logger:Logger,results:RemoveRepeatResourceResults){
 
 
     try {
 
+        val assetsResHelper = AssetsResourceHelper(variant)
 
-        //找出assets资源
-        val assetsResources = variant.findAssetsResource()
+        val assetsResources = assetsResHelper.findAssetsResources()
 
         if (assetsResources.isEmpty()) {
             logger.warn("${variant.name.capitalize()} $ do not has assetsResources")
             return
         }
 
-        //找出usedAssets
-        val usedAssetsResource = findUsedAssetsResources(variant,assetsResources)
+        val usedAssetsResource = assetsResHelper.findUsedAssetsResources(assetsResources)
 
-        if(usedAssetsResource.isEmpty()){
-            logger.warn("${variant.name.capitalize()} usedAssetsResource is empty!")
-        }
+        val ignoreAssetsResources = assetsResHelper.findIgnoreAssetsResources()
 
-        //找出asserts白名单
-        val ignoreAssetsResources = getIgnoreAssetsResources(variant.project)
 
-        //找出unusedAssets
-        var unusedAssetsResources = ArrayList<String>()
-        assetsResources.forEach assets@{ asset ->
-
-            if(asset in ignoreAssetsResources){
-                return@assets
-            }
-
-            usedAssetsResource.forEach { usedAsset ->
-                if (asset.endsWith(usedAsset)) {
-                    return@assets
-                }
-            }
-            unusedAssetsResources.add(asset)
-        }
+        var unusedAssetsResources = assetsResHelper.findUnusedAssetsResources(assetsResources,usedAssetsResource,ignoreAssetsResources)
 
         if (unusedAssetsResources.isEmpty()) {
             logger.warn("${variant.name.capitalize()}  $ do not has unusedAssetsResources")
             return
         }
 
-        unusedAssetsResources.forEach {
-            logger.warn("unusedAssetsResources :$it")
-        }
 
         //删除unusedAssets
         variant.mergeAssetsTask.outputs.files.files.apply {
@@ -285,10 +138,14 @@ private fun doRemoveUnusedAssetsResources(variant: BaseVariant,logger:Logger,res
             }
 
             files.forEach {
-                if(it.name in unusedAssetsResources){
+
+                if(containsUnusedAssertsRes(it,unusedAssetsResources)){
+                    val regex = "out" + File.separator
                     val size = it.length()
                     if(it.delete()){
-                        val name = "assets/" + it.name
+                        val name = "assets/" + it.absolutePath.split(regex)[1].replace(File.separator,"/")
+                        println("will deleted $name")
+                        println("will deleted ${it.absolutePath.split(regex)[1]}")
                         results.add(DuplicatedOrUnusedEntry(-1L,name,size,size,DuplicatedOrUnusedEntryType.unusedAssets))
 
                     }else{
@@ -312,6 +169,17 @@ private fun doRemoveUnusedAssetsResources(variant: BaseVariant,logger:Logger,res
 
 }
 
+
+private fun containsUnusedAssertsRes(file:File, unusedAssertsRes :List<String>):Boolean{
+    val fileName = file.absolutePath.replace(File.separator,"/")
+    unusedAssertsRes.forEach {
+        if(fileName.contains(it)){
+            return true
+        }
+    }
+
+    return false
+}
 
 
 

@@ -1,5 +1,7 @@
 {
   "ignoreAssets": [
-    "pexels_photo_268533.jpeg"
+    "pexels_photo_268533.jpeg",
+    "anim*"
+
   ]
 }

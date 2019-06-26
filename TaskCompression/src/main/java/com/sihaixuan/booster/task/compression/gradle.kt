@@ -29,3 +29,6 @@ val BaseVariant.dexArchiveWithDexMergerTask : Task
 
 val BaseVariant.mergeAssetsTask : Task
     get() = project.tasks.findByName("merge${name.capitalize()}Assets")!!
+
+val BaseVariant.boosterTask : Task
+    get() = project.tasks.findByName("transformClassesWithBoosterFor${name.capitalize()}")!!
