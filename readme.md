@@ -248,7 +248,7 @@ packageAndroidTask从processedResTask产物中读取ap_文件，开启shrinkReso
 3.把收集的无用资源根据crc进行分类，在按照重复资源优化处理
 
 
-源码见:[doRemoveUnusedResources方法](https://github.com/sihaixuan/BoosterDemo/blob/master/TaskCompression/src/main/java/com/sihaixuan/booster/task/compression/RemoveRepeatResourceVariantProcessor.kt)
+源码见:[doRemoveUnusedResources方法](https://github.com/sihaixuan/BoosterDemo/blob/master/TaskCompression/src/main/java/com/sihaixuan/booster/task/compression/RemoveRepeatAndUnusedResourceVariantProcessor.kt)
 
 集成无用资源优化打包，控制和输出报告都可以看到如下输出：
 
