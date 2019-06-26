@@ -89,7 +89,7 @@ private fun File.findDuplicatedResources():Map<Key,ArrayList<DuplicatedOrUnusedE
 
 5.按照同ZipEntry.method把改动后的resources.arsc添加到ap_文件中
 
-源码见:[doRemoveRepeatResources方法](https://github.com/sihaixuan/BoosterDemo/blob/master/TaskCompression/src/main/java/com/sihaixuan/booster/task/compression/RemoveRepeatResourceVariantProcessor.kt)
+源码见:[doRemoveRepeatResources方法](https://github.com/sihaixuan/BoosterDemo/blob/master/TaskCompression/src/main/java/com/sihaixuan/booster/task/compression/RemoveRepeatAndUnusedResourceVariantProcessor.kt)
 
 验证：
 分别在App/lib module显示三张图片，重复资源如下：
